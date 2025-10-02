@@ -3,14 +3,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Paperclip, Send } from "lucide-react";
 
-export function MessageComposer() {
+interface MessageComposerProps {
+  onSendMessage: (content: string, tempId: string) => void;
+  onTyping: (isTyping: boolean) => void;
+}
+
+export function MessageComposer({ onSendMessage, onTyping }: MessageComposerProps) {
   const [message, setMessage] = React.useState("");
+  const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const handleSend = () => {
     if (message.trim()) {
-      // In a real app, you'd call a prop like onSend(message)
-      console.log("Sending message:", message);
+      const tempId = `temp-${Date.now()}`;
+      onSendMessage(message.trim(), tempId);
       setMessage("");
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        onTyping(false);
+      }
     }
   };
 
@@ -19,6 +29,21 @@ export function MessageComposer() {
       event.preventDefault();
       handleSend();
     }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMessage(e.target.value);
+    
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    } else {
+      onTyping(true);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      onTyping(false);
+      typingTimeoutRef.current = null;
+    }, 1300);
   };
 
   return (
@@ -30,7 +55,7 @@ export function MessageComposer() {
         placeholder="Type a message..."
         className="flex-1"
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        onChange={handleInputChange}
         onKeyDown={handleKeyDown}
       />
       <Button size="icon" onClick={handleSend} aria-label="Send message">

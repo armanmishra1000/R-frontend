@@ -1,15 +1,17 @@
 export interface User {
   id: string;
   name: string;
-  online: boolean;
+  online: boolean; // Deprecated in favor of presence, but kept for compatibility
+  presence: 'online' | 'offline' | 'idle';
 }
 
 export interface Message {
   id: string;
+  tempId?: string;
   senderId: string;
   content: string;
   timestamp: string;
-  status: 'sent' | 'delivered' | 'read';
+  status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 }
 
 export interface Chat {
@@ -22,10 +24,10 @@ export interface Chat {
 }
 
 export const users: User[] = [
-  { id: 'user-1', name: 'Alice', online: true },
-  { id: 'user-2', name: 'Bob', online: false },
-  { id: 'user-3', name: 'Charlie', online: true },
-  { id: 'user-4', name: 'David', online: false },
+  { id: 'user-1', name: 'Alice', online: true, presence: 'online' },
+  { id: 'user-2', name: 'Bob', online: false, presence: 'offline' },
+  { id: 'user-3', name: 'Charlie', online: true, presence: 'online' },
+  { id: 'user-4', name: 'David', online: false, presence: 'offline' },
 ];
 
 export const currentUser = users[0];
@@ -38,7 +40,7 @@ export const chats: Chat[] = [
     messages: [
       { id: 'msg-1', senderId: 'user-1', content: 'Hey Bob!', timestamp: '2024-07-29T10:00:00Z', status: 'read' },
       { id: 'msg-2', senderId: 'user-2', content: 'Hey Alice! How are you?', timestamp: '2024-07-29T10:01:00Z', status: 'read' },
-      { id: 'msg-3', senderId: 'user-1', content: 'I am good, thanks! How about you? Doing anything fun this weekend? I was thinking of going for a hike.', timestamp: '2024-07-29T10:01:30Z', status: 'delivered' },
+      { id: 'msg-3', senderId: 'user-1', content: 'I am good, thanks! How about you?', timestamp: '2024-07-29T10:01:30Z', status: 'delivered' },
     ],
     unreadCount: 1,
   },

@@ -2,44 +2,43 @@ import * as React from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { PresenceBadge } from "./presence-badge";
 import { cn } from "@/lib/utils";
-import { Search } from "lucide-react";
+import { Search, User as UserIcon } from "lucide-react";
 import { Chat, User, currentUser } from "@/data/mock-data";
 
 interface ChatListProps {
   chats: Chat[];
   onSelectChat: (chat: Chat) => void;
-  selectedChatId?: string;
+  selectedChatId?: string | null;
 }
 
 export function ChatList({ chats, onSelectChat, selectedChatId }: ChatListProps) {
   const [searchQuery, setSearchQuery] = React.useState("");
 
-  const getChatName = (chat: Chat) => {
+  const getChatInfo = (chat: Chat) => {
     if (chat.type === 'group') {
-      return chat.name || chat.participants.map(p => p.name).join(', ');
+      return {
+        name: chat.name || chat.participants.map(p => p.name).join(', '),
+        otherParticipant: null,
+      };
     }
     const otherUser = chat.participants.find(p => p.id !== currentUser.id);
-    return otherUser?.name || 'Unknown User';
+    return {
+      name: otherUser?.name || 'Unknown User',
+      otherParticipant: otherUser,
+    };
   };
 
   const getInitials = (name: string) => {
     if (!name) return '';
-    return name
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((word) => word[0])
-      .join('')
-      .toUpperCase();
+    return name.trim().split(/\s+/).filter(Boolean).map((word) => word[0]).join('').toUpperCase();
   }
 
   const filteredChats = React.useMemo(() => {
-    if (!searchQuery) {
-      return chats;
-    }
+    if (!searchQuery) return chats;
     return chats.filter((chat) =>
-      getChatName(chat).toLowerCase().includes(searchQuery.toLowerCase())
+      getChatInfo(chat).name.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [chats, searchQuery]);
 
@@ -57,33 +56,43 @@ export function ChatList({ chats, onSelectChat, selectedChatId }: ChatListProps)
         </div>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {filteredChats.map((chat) => (
-          <div
-            key={chat.id}
-            className={cn(
-              "flex items-center gap-3 p-3 cursor-pointer hover:bg-accent",
-              selectedChatId === chat.id && "bg-accent"
-            )}
-            onClick={() => onSelectChat(chat)}
-          >
-            <Avatar className="h-10 w-10">
-              <AvatarFallback>{getInitials(getChatName(chat))}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 overflow-hidden">
-              <p className="font-semibold truncate">{getChatName(chat)}</p>
-              <p className="text-sm text-muted-foreground truncate">
-                {chat.messages && chat.messages.length > 0
-                  ? chat.messages[chat.messages.length - 1].content
-                  : "No messages yet"}
-              </p>
+        {filteredChats.map((chat) => {
+          const { name, otherParticipant } = getChatInfo(chat);
+          return (
+            <div
+              key={chat.id}
+              className={cn(
+                "flex items-center gap-3 p-3 cursor-pointer hover:bg-accent",
+                selectedChatId === chat.id && "bg-accent"
+              )}
+              onClick={() => onSelectChat(chat)}
+            >
+              <div className="relative">
+                <Avatar className="h-10 w-10">
+                  {chat.type === 'group' ? (
+                    <AvatarFallback><UserIcon className="h-5 w-5" /></AvatarFallback>
+                  ) : (
+                    <AvatarFallback>{getInitials(name)}</AvatarFallback>
+                  )}
+                </Avatar>
+                {otherParticipant && <PresenceBadge presence={otherParticipant.presence} />}
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <p className="font-semibold truncate">{name}</p>
+                <p className="text-sm text-muted-foreground truncate">
+                  {chat.messages.length > 0
+                    ? chat.messages[chat.messages.length - 1].content
+                    : "No messages yet"}
+                </p>
+              </div>
+              {chat.unreadCount > 0 && (
+                <Badge className="h-6 w-6 shrink-0 items-center justify-center rounded-full">
+                  {chat.unreadCount}
+                </Badge>
+              )}
             </div>
-            {chat.unreadCount > 0 && (
-              <Badge className="h-6 w-6 shrink-0 items-center justify-center rounded-full">
-                {chat.unreadCount}
-              </Badge>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

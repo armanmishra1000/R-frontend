@@ -3,16 +3,30 @@
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const STORAGE_KEY = "multi-agent-chat-history";
 
 export default function ChatPage() {
   const [input, setInput] = useState("");
-  const { messages, sendMessage, status, error } = useChat({
+  const [isMessagesLoaded, setIsMessagesLoaded] = useState(false);
+
+  const { messages, sendMessage, setMessages, status, error } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
     }),
@@ -27,6 +41,31 @@ export default function ChatPage() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const isLoading = status === "submitted" || status === "streaming";
+
+  // Restore messages from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsedMessages = JSON.parse(saved);
+          console.log("[Client] Restored", parsedMessages.length, "messages from localStorage");
+          setMessages(parsedMessages);
+        } catch (error) {
+          console.error("[Client] Failed to parse saved messages:", error);
+          localStorage.removeItem(STORAGE_KEY); // Clear corrupted data
+        }
+      }
+    }
+    setIsMessagesLoaded(true);
+  }, [setMessages]);
+
+  // Clear chat handler
+  const handleClearChat = () => {
+    setMessages([]);
+    localStorage.removeItem(STORAGE_KEY);
+    console.log("[Client] Chat cleared");
+  };
 
   // Log status changes
   useEffect(() => {
@@ -52,12 +91,18 @@ export default function ChatPage() {
     }
   };
 
-  // Persist messages to localStorage whenever they change
+  // Persist messages to localStorage whenever they change (improved)
   useEffect(() => {
-    if (typeof window !== "undefined" && messages.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    if (typeof window !== "undefined" && isMessagesLoaded) {
+      if (messages.length > 0) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+        console.log("[Client] Saved", messages.length, "messages to localStorage");
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+        console.log("[Client] Removed empty chat from localStorage");
+      }
     }
-  }, [messages]);
+  }, [messages, isMessagesLoaded]);
 
   // Auto-scroll when new messages arrive
   useEffect(() => {
@@ -73,12 +118,42 @@ export default function ChatPage() {
             Powered by Gemini 2.0 Flash
           </p>
         </div>
-        {isLoading && (
-          <span className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-            Agent is thinking…
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {isLoading && (
+            <span className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+              Agent is thinking…
+            </span>
+          )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={messages.length === 0}
+                className="flex items-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Clear Chat
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear chat history?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all messages in this conversation.
+                  This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleClearChat}>
+                  Clear Chat
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </header>
 
       <ScrollArea className="flex-1 rounded-md border">

@@ -8,7 +8,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { chats, Chat } from "@/data/mock-data";
 
 export function ChatLayout() {
-  const [selectedChat, setSelectedChat] = React.useState<Chat | null>(chats[0]);
+  const [selectedChat, setSelectedChat] = React.useState<Chat | null>(null);
   const isMobile = useIsMobile();
 
   if (isMobile) {

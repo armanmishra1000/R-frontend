@@ -1,3 +1,4 @@
+import * as React from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,8 @@ interface ChatListProps {
 }
 
 export function ChatList({ chats, onSelectChat, selectedChatId }: ChatListProps) {
+  const [searchQuery, setSearchQuery] = React.useState("");
+
   const getChatName = (chat: Chat) => {
     if (chat.type === 'group') {
       return chat.name || chat.participants.map(p => p.name).join(', ');
@@ -21,19 +24,40 @@ export function ChatList({ chats, onSelectChat, selectedChatId }: ChatListProps)
   };
 
   const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('');
+    if (!name) return '';
+    return name
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word[0])
+      .join('')
+      .toUpperCase();
   }
+
+  const filteredChats = React.useMemo(() => {
+    if (!searchQuery) {
+      return chats;
+    }
+    return chats.filter((chat) =>
+      getChatName(chat).toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [chats, searchQuery]);
 
   return (
     <div className="flex flex-col h-full">
       <div className="p-4 border-b">
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search chats..." className="pl-8" />
+          <Input
+            placeholder="Search chats..."
+            className="pl-8"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {chats.map((chat) => (
+        {filteredChats.map((chat) => (
           <div
             key={chat.id}
             className={cn(
@@ -48,7 +72,9 @@ export function ChatList({ chats, onSelectChat, selectedChatId }: ChatListProps)
             <div className="flex-1 overflow-hidden">
               <p className="font-semibold truncate">{getChatName(chat)}</p>
               <p className="text-sm text-muted-foreground truncate">
-                {chat.messages[chat.messages.length - 1].content}
+                {chat.messages && chat.messages.length > 0
+                  ? chat.messages[chat.messages.length - 1].content
+                  : "No messages yet"}
               </p>
             </div>
             {chat.unreadCount > 0 && (

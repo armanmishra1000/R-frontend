@@ -10,15 +10,30 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const isCurrentUser = message.senderId === currentUser.id;
   const sender = users.find(user => user.id === message.senderId);
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('');
+  if (!sender) {
+    console.warn(`Sender not found for message:`, message);
   }
+
+  const senderName = sender?.name ?? "Unknown User";
+
+  const getInitials = (name: string) => {
+    if (!name) return 'UU';
+    return name
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word[0])
+      .join('')
+      .toUpperCase();
+  }
+
+  const avatarFallback = getInitials(senderName);
 
   return (
     <div className={cn("flex items-start gap-3", isCurrentUser && "justify-end")}>
       {!isCurrentUser && (
         <Avatar className="h-8 w-8">
-          <AvatarFallback>{sender ? getInitials(sender.name) : 'U'}</AvatarFallback>
+          <AvatarFallback>{avatarFallback}</AvatarFallback>
         </Avatar>
       )}
       <div
@@ -36,7 +51,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       </div>
       {isCurrentUser && (
         <Avatar className="h-8 w-8">
-          <AvatarFallback>{sender ? getInitials(sender.name) : 'U'}</AvatarFallback>
+          <AvatarFallback>{avatarFallback}</AvatarFallback>
         </Avatar>
       )}
     </div>

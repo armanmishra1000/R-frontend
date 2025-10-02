@@ -23,13 +23,22 @@ export function ChatWindow({ chat, onBack }: ChatWindowProps) {
     return name.split(' ').map(n => n[0]).join('');
   }
 
+  const getChatStatus = (chat: Chat): string => {
+    if (chat.type === 'group') {
+      const onlineCount = chat.participants.filter(p => p.online).length;
+      return `${chat.participants.length} participants, ${onlineCount} online`;
+    }
+    const otherUser = chat.participants.find(p => p.id !== currentUser.id);
+    return otherUser?.online ? 'Online' : 'Offline';
+  };
+
   const chatName = getChatName(chat, currentUser);
 
   return (
     <div className="flex flex-col h-full">
       <header className="flex items-center gap-4 border-b p-4">
         {onBack && (
-          <Button variant="ghost" size="icon" onClick={onBack}>
+          <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back to chat list">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         )}
@@ -38,7 +47,7 @@ export function ChatWindow({ chat, onBack }: ChatWindowProps) {
         </Avatar>
         <div>
           <p className="font-semibold">{chatName}</p>
-          <p className="text-sm text-muted-foreground">Online</p>
+          <p className="text-sm text-muted-foreground">{getChatStatus(chat)}</p>
         </div>
       </header>
       <div className="flex-1 overflow-y-auto p-4">

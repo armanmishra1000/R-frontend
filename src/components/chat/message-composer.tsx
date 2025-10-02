@@ -12,6 +12,17 @@ export function MessageComposer({ onSendMessage, onTyping }: MessageComposerProp
   const [message, setMessage] = React.useState("");
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
+  React.useEffect(() => {
+    // Cleanup on unmount
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        onTyping(false); // Ensure typing state is reset
+        typingTimeoutRef.current = null;
+      }
+    };
+  }, [onTyping]);
+
   const handleSend = () => {
     if (message.trim()) {
       const tempId = `temp-${Date.now()}`;
@@ -20,6 +31,7 @@ export function MessageComposer({ onSendMessage, onTyping }: MessageComposerProp
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
         onTyping(false);
+        typingTimeoutRef.current = null;
       }
     }
   };

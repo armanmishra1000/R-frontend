@@ -7,13 +7,29 @@ type DisconnectCallback = () => void;
 class MockServer {
   private client: ClientCallback | null = null;
   private disconnectCallback: DisconnectCallback | null = null;
-  private chats: Chat[] = JSON.parse(JSON.stringify(initialChats));
-  private users: User[] = JSON.parse(JSON.stringify(initialUsers));
+  private chats: Chat[] = structuredClone(initialChats);
+  private users: User[] = structuredClone(initialUsers);
   private typingTimers: Map<string, NodeJS.Timeout> = new Map();
+  private presenceIntervalId: NodeJS.Timeout | undefined;
+  private connectionIntervalId: NodeJS.Timeout | undefined;
 
   constructor() {
-    this.simulatePresenceChanges();
-    this.simulateConnectionDrops();
+    this.presenceIntervalId = this.simulatePresenceChanges();
+    this.connectionIntervalId = this.simulateConnectionDrops();
+  }
+
+  public cleanup() {
+    if (this.presenceIntervalId) {
+      clearInterval(this.presenceIntervalId);
+      this.presenceIntervalId = undefined;
+    }
+    if (this.connectionIntervalId) {
+      clearInterval(this.connectionIntervalId);
+      this.connectionIntervalId = undefined;
+    }
+    this.typingTimers.forEach(timer => clearTimeout(timer));
+    this.typingTimers.clear();
+    console.log("MockServer cleaned up.");
   }
 
   connect(clientCallback: ClientCallback, disconnectCallback: DisconnectCallback) {
@@ -77,13 +93,15 @@ class MockServer {
       const otherUser = chat.participants.find(p => p.id !== currentUser.id && p.presence === 'online');
       if (!otherUser) return;
 
+      const otherUserSnapshot = { id: otherUser.id, name: otherUser.name };
+
       // Simulate typing from the other user
-      this.handleTypingUpdate(chatId, otherUser.id, true);
+      this.handleTypingUpdate(chatId, otherUserSnapshot.id, true);
       setTimeout(() => {
-        this.handleTypingUpdate(chatId, otherUser.id, false);
+        this.handleTypingUpdate(chatId, otherUserSnapshot.id, false);
         const replyMessage: Message = {
           id: `msg-${Date.now()}`,
-          senderId: otherUser.id,
+          senderId: otherUserSnapshot.id,
           content: "This is a simulated real-time reply!",
           timestamp: new Date().toISOString(),
           status: 'delivered',
@@ -119,8 +137,8 @@ class MockServer {
     this.emit('typing.update', { chatId, userId, isTyping });
   }
 
-  private simulatePresenceChanges() {
-    setInterval(() => {
+  private simulatePresenceChanges(): NodeJS.Timeout {
+    return setInterval(() => {
       const userToChange = this.users.find(u => u.id !== currentUser.id);
       if (userToChange) {
         const oldStatus = userToChange.presence;
@@ -130,8 +148,8 @@ class MockServer {
     }, 10000); // Change a user's presence every 10 seconds
   }
 
-  private simulateConnectionDrops() {
-    setInterval(() => {
+  private simulateConnectionDrops(): NodeJS.Timeout {
+    return setInterval(() => {
       console.warn("Simulating connection drop...");
       this.disconnectCallback?.();
     }, 45000); // Drop connection every 45 seconds

@@ -14,9 +14,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loaded, setLoaded] = useState(false);
 
   const refresh = async () => {
-    const me = await authApi.me();
-    setUser(me);
-    setLoaded(true);
+    try {
+      const me = await authApi.me();
+      setUser(me);
+      setLoaded(true);
+    } catch (error) {
+      console.error("[AUTH CONTEXT] Failed to refresh user session:", error);
+      setUser(null);
+      setLoaded(true);
+    }
   };
 
   useEffect(() => {

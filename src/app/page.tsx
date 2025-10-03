@@ -61,9 +61,14 @@ export default function ChatPage() {
   }
 
   const handleLogout = async () => {
-    await authApi.logout();
-    await refresh();
-    router.push("/login");
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.error("[CLIENT] Logout API failed:", error);
+    } finally {
+      await refresh();
+      router.push("/login");
+    }
   };
 
   // Scroll to bottom function

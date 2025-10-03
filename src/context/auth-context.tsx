@@ -2,16 +2,15 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { authApi } from "@/lib/api";
+import type { User } from "@/types/auth";
 
-type User = { id: string; fullName: string; email: string } | null;
-
-const AuthContext = createContext<{ user: User; refresh: () => Promise<void> }>({
+const AuthContext = createContext<{ user: User | null; refresh: () => Promise<void> }>({
   user: null,
   refresh: async () => undefined,
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   const refresh = async () => {

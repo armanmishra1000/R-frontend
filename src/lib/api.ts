@@ -52,7 +52,10 @@ export const authApi = {
     return res.json();
   },
   async logout(): Promise<void> {
-    await fetch(`${BASE_URL}/auth/logout`, { method: "POST", credentials: "include" });
+    const res = await fetch(`${BASE_URL}/auth/logout`, { method: "POST", credentials: "include" });
+    if (!res.ok) {
+      throw new Error(`Logout failed: HTTP ${res.status} ${res.statusText}`);
+    }
   },
   async me(): Promise<User | null> {
     const res = await fetch(`${BASE_URL}/me`, { credentials: "include" });

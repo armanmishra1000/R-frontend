@@ -8,6 +8,14 @@ import { Input } from "@/components/ui/input";
 import { authApi } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 
+/**
+ * Renders the login page with email and password fields and handles user sign-in.
+ *
+ * The component manages local form, error, and loading state; on submit it authenticates the user,
+ * refreshes the authentication context, and navigates to the home page on success.
+ *
+ * @returns The login page JSX element.
+ */
 export default function LoginPage() {
   const router = useRouter();
   const { refresh } = useAuth();

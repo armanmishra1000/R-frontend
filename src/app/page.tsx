@@ -29,6 +29,13 @@ type ChatMessage = {
   content: string;
 };
 
+/**
+ * Render the authenticated multi-agent chat page with streaming Server-Sent Events, localStorage persistence, and authentication-aware routing.
+ *
+ * This component displays a multi-agent chat UI for signed-in users, restores and persists conversation history to localStorage, streams assistant responses from the backend (processing sub-agent events and errors incrementally), provides controls to clear the chat and logout, and auto-scrolls as new messages arrive.
+ *
+ * @returns The chat page JSX rendered for an authenticated user (login/register prompt is shown when no user is present).
+ */
 export default function ChatPage() {
   const router = useRouter();
   const { user, refresh } = useAuth();

@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Trash2, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/context/auth-context";
+import { authApi } from "@/lib/api";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +30,8 @@ type ChatMessage = {
 };
 
 export default function ChatPage() {
+  const router = useRouter();
+  const { user, refresh } = useAuth();
   const [input, setInput] = useState("");
   const [isMessagesLoaded, setIsMessagesLoaded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -34,6 +39,32 @@ export default function ChatPage() {
   const [error, setError] = useState<Error | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    return (
+      <main className="mx-auto flex h-screen max-w-md flex-col items-center justify-center gap-6 p-6 text-center">
+        <div>
+          <h1 className="text-2xl font-bold">Authentication Required</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Please sign in to access the chat.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button onClick={() => router.push("/login")}>Sign in</Button>
+          <Button variant="outline" onClick={() => router.push("/register")}>
+            Sign up
+          </Button>
+        </div>
+      </main>
+    );
+  }
+
+  const handleLogout = async () => {
+    await authApi.logout();
+    await refresh();
+    router.push("/login");
+  };
 
   // Scroll to bottom function
   const scrollToBottom = () => {
@@ -58,12 +89,13 @@ export default function ChatPage() {
     setError(null);
 
     try {
-      const endpoint = process.env.NEXT_PUBLIC_MAIN_AGENT_URL || "http://localhost:5050";
+      const endpoint = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5050";
       const outbound = [...messages, userMsg].map(({ role, content }) => ({ role, content }));
 
       console.log("[FRONTEND] → Fetching from:", endpoint);
       const response = await fetch(`${endpoint}/chat`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: outbound }),
       });
@@ -248,7 +280,7 @@ export default function ChatPage() {
         <div>
           <h1 className="text-2xl font-bold">Multi-Agent Browser Automation</h1>
           <p className="text-sm text-muted-foreground">
-            Powered by Gemini 2.0 Flash
+            Powered by Gemini 2.0 Flash • {user.fullName}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -286,6 +318,15 @@ export default function ChatPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLogout}
+            className="flex items-center gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </Button>
         </div>
       </header>
 

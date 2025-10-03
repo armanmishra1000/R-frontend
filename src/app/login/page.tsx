@@ -21,8 +21,12 @@ export default function LoginPage() {
     setError(null);
     try {
       await authApi.login(form);
-      await refresh();
-      router.push("/");
+      try {
+        await refresh();
+        router.push("/");
+      } catch (refreshErr: unknown) {
+        setError((refreshErr as { error?: string })?.error ?? "Failed to refresh session");
+      }
     } catch (err: unknown) {
       setError((err as { error?: string })?.error ?? "Login failed");
     } finally {

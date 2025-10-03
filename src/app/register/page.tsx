@@ -21,8 +21,12 @@ export default function RegisterPage() {
     setError(null);
     try {
       await authApi.register(form);
-      await refresh();
-      router.push("/");
+      try {
+        await refresh();
+        router.push("/");
+      } catch (refreshErr: unknown) {
+        setError((refreshErr as { error?: string })?.error ?? "Failed to refresh session");
+      }
     } catch (err: unknown) {
       setError((err as { error?: string })?.error ?? "Registration failed");
     } finally {

@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,25 +20,115 @@ import {
 
 const STORAGE_KEY = "multi-agent-chat-history";
 
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+};
+
 export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isMessagesLoaded, setIsMessagesLoaded] = useState(false);
-
-  const { messages, sendMessage, setMessages, status, error } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-    }),
-    onFinish: () => {
-      console.log("[Client] Stream finished");
-      scrollToBottom();
-    },
-    onError: (error) => {
-      console.error("[Client] Chat error:", error);
-    },
-  });
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const isLoading = status === "submitted" || status === "streaming";
+
+  // Scroll to bottom function
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  // Send message function with SSE streaming
+  const sendMessage = async (userMessage: string) => {
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: userMessage,
+    };
+
+    // Add user message to state
+    setMessages((prev) => [...prev, userMsg]);
+    setIsLoading(true);
+    setError(null);
+
+    const assistantId = crypto.randomUUID();
+
+    try {
+      const endpoint = process.env.NEXT_PUBLIC_MAIN_AGENT_URL || "http://localhost:5050";
+      const outbound = [...messages, userMsg].map(({ role, content }) => ({ role, content }));
+
+      const response = await fetch(`${endpoint}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: outbound }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No stream available");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      // Create placeholder assistant message
+      setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "" }]);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const chunks = buffer.split("\n\n");
+        buffer = chunks.pop() ?? "";
+
+        for (const chunk of chunks) {
+          if (!chunk.startsWith("data:")) continue;
+
+          const payload = JSON.parse(chunk.slice(5).trim());
+
+          if (payload.done) continue;
+          if (payload.error) throw new Error(payload.error);
+
+          if (payload.text) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantId
+                  ? { ...msg, content: msg.content + payload.text }
+                  : msg
+              )
+            );
+          }
+        }
+      }
+
+      console.log("[Client] Stream finished");
+      scrollToBottom();
+    } catch (err) {
+      console.error("[Client] Chat error:", err);
+      const errorMsg = err instanceof Error ? err : new Error("Unknown error");
+      setError(errorMsg);
+
+      // Add error message to chat
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: `Error: ${errorMsg.message}`,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Restore messages from localStorage on mount
   useEffect(() => {
@@ -67,11 +155,6 @@ export default function ChatPage() {
     console.log("[Client] Chat cleared");
   };
 
-  // Log status changes
-  useEffect(() => {
-    console.log("[Client] Status changed:", status);
-  }, [status]);
-
   // Log messages changes
   useEffect(() => {
     console.log("[Client] Messages updated:", messages.length, messages);
@@ -83,13 +166,6 @@ export default function ChatPage() {
       console.error("[Client] Error state:", error);
     }
   }, [error]);
-
-  // Scroll to bottom function
-  const scrollToBottom = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  };
 
   // Persist messages to localStorage whenever they change (improved)
   useEffect(() => {
@@ -169,30 +245,23 @@ export default function ChatPage() {
             </div>
           )}
 
-          {messages.map((message) => {
-            const textContent = message.parts
-              .filter((part) => part.type === "text")
-              .map((part) => ("text" in part ? part.text : ""))
-              .join("");
-
-            return (
-              <article
-                key={message.id}
-                className={
-                  message.role === "user"
-                    ? "ml-auto max-w-[80%] rounded-lg bg-primary px-4 py-3 text-primary-foreground"
-                    : "mr-auto max-w-[80%] rounded-lg border bg-muted px-4 py-3"
-                }
-              >
-                <div className="mb-1 text-xs font-semibold opacity-70">
-                  {message.role === "user" ? "You" : "Agent"}
-                </div>
-                <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {textContent}
-                </p>
-              </article>
-            );
-          })}
+          {messages.map((message) => (
+            <article
+              key={message.id}
+              className={
+                message.role === "user"
+                  ? "ml-auto max-w-[80%] rounded-lg bg-primary px-4 py-3 text-primary-foreground"
+                  : "mr-auto max-w-[80%] rounded-lg border bg-muted px-4 py-3"
+              }
+            >
+              <div className="mb-1 text-xs font-semibold opacity-70">
+                {message.role === "user" ? "You" : "Agent"}
+              </div>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                {message.content}
+              </p>
+            </article>
+          ))}
 
           {isLoading && (
             <div className="mr-auto max-w-[80%] space-y-2 rounded-lg border bg-muted px-4 py-3">
@@ -223,7 +292,7 @@ export default function ChatPage() {
         onSubmit={(e) => {
           e.preventDefault();
           if (!input.trim() || isLoading) return;
-          sendMessage({ text: input });
+          sendMessage(input);
           setInput("");
         }}
         className="flex flex-col gap-2"
@@ -235,7 +304,7 @@ export default function ChatPage() {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               if (!input.trim() || isLoading) return;
-              sendMessage({ text: input });
+              sendMessage(input);
               setInput("");
             }
           }}

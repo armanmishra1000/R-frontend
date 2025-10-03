@@ -50,17 +50,18 @@ export default function ChatPage() {
       content: userMessage,
     };
 
+    console.log("[FRONTEND] → Sending message:", userMessage);
+
     // Add user message to state
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
     setError(null);
 
-    const assistantId = crypto.randomUUID();
-
     try {
       const endpoint = process.env.NEXT_PUBLIC_MAIN_AGENT_URL || "http://localhost:5050";
       const outbound = [...messages, userMsg].map(({ role, content }) => ({ role, content }));
 
+      console.log("[FRONTEND] → Fetching from:", endpoint);
       const response = await fetch(`${endpoint}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -77,12 +78,12 @@ export default function ChatPage() {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      // Create placeholder assistant message
-      setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "" }]);
-
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          console.log("[FRONTEND] → Stream complete");
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
 
@@ -93,18 +94,74 @@ export default function ChatPage() {
           if (!chunk.startsWith("data:")) continue;
 
           const payload = JSON.parse(chunk.slice(5).trim());
+          console.log("[FRONTEND] → SSE event:", payload.type, payload);
 
-          if (payload.done) continue;
-          if (payload.error) throw new Error(payload.error);
-
-          if (payload.text) {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === assistantId
-                  ? { ...msg, content: msg.content + payload.text }
-                  : msg
-              )
-            );
+          // Handle different event types - create separate messages for each
+          if (payload.type === "reply") {
+            // Main agent reply - create new message
+            console.log("[FRONTEND] → Adding main agent reply");
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: payload.text
+              }
+            ]);
+          } else if (payload.type === "subagent:start") {
+            // Sub-agent started - create status message
+            console.log("[FRONTEND] → Sub-agent started");
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: `🔍 Starting sub-agent for: ${payload.payload.subreddit}...`
+              }
+            ]);
+          } else if (payload.type === "subagent:unavailable") {
+            // Sub-agent unavailable - show warning
+            console.log("[FRONTEND] → Sub-agent unavailable");
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: `⚠️ ${payload.payload.message}`
+              }
+            ]);
+          } else if (payload.type === "subagent:result") {
+            // Sub-agent completed - show results
+            console.log("[FRONTEND] → Sub-agent result received");
+            const result = payload.payload.result;
+            const summary = `✅ **Plan generated:**\n${result.summary}\n\n**Steps:**\n${result.extractionPlan.steps.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')}`;
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: summary
+              }
+            ]);
+          } else if (payload.type === "subagent:error") {
+            // Sub-agent error
+            console.error("[FRONTEND] → Sub-agent error:", payload.payload.error);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: `❌ Error: ${payload.payload.error}`
+              }
+            ]);
+          } else if (payload.type === "complete") {
+            // Stream complete
+            console.log("[FRONTEND] → Received complete event");
+            continue;
+          } else if (payload.type === "error") {
+            // Fatal error
+            console.error("[FRONTEND] → Fatal error:", payload.message);
+            throw new Error(payload.message);
           }
         }
       }

@@ -25,7 +25,7 @@ export default function RegisterPage() {
         await refresh();
         router.push("/");
       } catch (refreshErr: unknown) {
-        setError((refreshErr as { error?: string })?.error ?? "Failed to refresh session");
+        setError("Registration succeeded but refreshing user data failed. Please try logging in.");
       }
     } catch (err: unknown) {
       setError((err as { error?: string })?.error ?? "Registration failed");

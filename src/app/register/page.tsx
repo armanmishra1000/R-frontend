@@ -8,6 +8,14 @@ import { Input } from "@/components/ui/input";
 import { authApi } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 
+/**
+ * Render a user registration page with inputs for full name, email, and password and handle the registration flow.
+ *
+ * The component displays validation requirements, shows submission error messages, disables the submit button while
+ * registering, calls the registration API, refreshes authentication state on success, and navigates to the home page.
+ *
+ * @returns A React element rendering the registration page UI.
+ */
 export default function RegisterPage() {
   const router = useRouter();
   const { refresh } = useAuth();

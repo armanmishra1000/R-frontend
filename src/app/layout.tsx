@@ -18,6 +18,12 @@ export const metadata: Metadata = {
   description: "AI-powered Reddit lead generation with multi-agent automation",
 };
 
+/**
+ * Root layout component that renders the application's top-level HTML structure and provides authentication context to its children.
+ *
+ * @param children - The React nodes to render inside the application root; these are wrapped with the app's authentication provider.
+ * @returns The root HTML element tree containing a body that hosts the provided children within the authentication context.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{

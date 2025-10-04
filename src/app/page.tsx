@@ -46,26 +46,7 @@ export default function ChatPage() {
   const [error, setError] = useState<Error | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Redirect to login if not authenticated
-  if (!user) {
-    return (
-      <main className="mx-auto flex h-screen max-w-md flex-col items-center justify-center gap-6 p-6 text-center">
-        <div>
-          <h1 className="text-2xl font-bold">Authentication Required</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Please sign in to access the chat.
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Button onClick={() => router.push("/login")}>Sign in</Button>
-          <Button variant="outline" onClick={() => router.push("/register")}>
-            Sign up
-          </Button>
-        </div>
-      </main>
-    );
-  }
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleLogout = async () => {
     try {
@@ -87,6 +68,9 @@ export default function ChatPage() {
 
   // Send message function with SSE streaming
   const sendMessage = async (userMessage: string) => {
+    // Create new AbortController for this request
+    abortControllerRef.current = new AbortController();
+
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -101,16 +85,28 @@ export default function ChatPage() {
     setError(null);
 
     try {
-      const endpoint = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5050";
+      // Validate backend URL is set
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      if (!backendUrl) {
+        throw new Error("NEXT_PUBLIC_BACKEND_URL environment variable is not set");
+      }
+
       const outbound = [...messages, userMsg].map(({ role, content }) => ({ role, content }));
 
-      console.log("[FRONTEND] → Fetching from:", endpoint);
-      const response = await fetch(`${endpoint}/chat`, {
+      console.log("[FRONTEND] → Fetching from:", backendUrl);
+      const response = await fetch(`${backendUrl}/chat`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: outbound }),
+        signal: abortControllerRef.current.signal,
       });
+
+      // Handle authentication errors
+      if (response.status === 401 || response.status === 403) {
+        router.push("/login");
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -137,7 +133,17 @@ export default function ChatPage() {
         for (const chunk of chunks) {
           if (!chunk.startsWith("data:")) continue;
 
-          const payload = JSON.parse(chunk.slice(5).trim());
+          const chunkData = chunk.slice(5).trim();
+          if (!chunkData) continue;
+
+          let payload;
+          try {
+            payload = JSON.parse(chunkData);
+          } catch (parseError) {
+            console.error("[FRONTEND] → Failed to parse SSE chunk:", chunkData, parseError);
+            continue; // Skip malformed chunk
+          }
+
           console.log("[FRONTEND] → SSE event:", payload.type, payload);
 
           // Handle different event types - create separate messages for each
@@ -178,7 +184,22 @@ export default function ChatPage() {
             // Sub-agent completed - show results
             console.log("[FRONTEND] → Sub-agent result received");
             const result = payload.payload.result;
-            const summary = `✅ **Plan generated:**\n${result.summary}\n\n**Steps:**\n${result.extractionPlan.steps.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')}`;
+
+            // Safely check for result and steps before accessing
+            let summary = "✅ **Plan generated:**\n";
+            if (result?.summary) {
+              summary += result.summary;
+            } else {
+              summary += "No summary provided";
+            }
+
+            if (result?.extractionPlan?.steps && Array.isArray(result.extractionPlan.steps)) {
+              summary += "\n\n**Steps:**\n";
+              summary += result.extractionPlan.steps.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n');
+            } else {
+              summary += "\n\n**Steps:**\nNo steps provided";
+            }
+
             setMessages((prev) => [
               ...prev,
               {
@@ -213,6 +234,12 @@ export default function ChatPage() {
       console.log("[Client] Stream finished");
       scrollToBottom();
     } catch (err) {
+      // Check if error is due to abort
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log("[Client] Request aborted");
+        return;
+      }
+
       console.error("[Client] Chat error:", err);
       const errorMsg = err instanceof Error ? err : new Error("Unknown error");
       setError(errorMsg);
@@ -228,8 +255,18 @@ export default function ChatPage() {
       ]);
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
     }
   };
+
+  // Cleanup effect to abort in-flight requests on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Restore messages from localStorage on mount
   useEffect(() => {
@@ -286,13 +323,34 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
+  const unauthenticatedView = (
+    <main className="mx-auto flex h-screen max-w-md flex-col items-center justify-center gap-6 p-6 text-center">
+      <div>
+        <h1 className="text-2xl font-bold">Authentication Required</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Please sign in to access the chat.
+        </p>
+      </div>
+      <div className="flex gap-3">
+        <Button onClick={() => router.push("/login")}>Sign in</Button>
+        <Button variant="outline" onClick={() => router.push("/register")}>
+          Sign up
+        </Button>
+      </div>
+    </main>
+  );
+
+  if (!user) {
+    return unauthenticatedView;
+  }
+
   return (
     <main className="mx-auto flex h-screen max-w-4xl flex-col gap-4 p-4">
       <header className="flex items-center justify-between border-b pb-4">
         <div>
           <h1 className="text-2xl font-bold">Multi-Agent Browser Automation</h1>
           <p className="text-sm text-muted-foreground">
-            Powered by Gemini 2.0 Flash • {user.fullName}
+            Powered by Gemini 2.0 Flash • {user?.fullName ?? ""}
           </p>
         </div>
         <div className="flex items-center gap-3">

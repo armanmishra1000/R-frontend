@@ -183,7 +183,15 @@ export default function ChatPage() {
           } else if (payload.type === "subagent:result") {
             // Sub-agent completed - show results
             console.log("[FRONTEND] → Sub-agent result received");
-            const result = payload.payload.result;
+
+            // Safely access payload.payload first
+            const subPayload = payload?.payload;
+            if (!subPayload) {
+              console.log("[FRONTEND] → No payload in subagent result");
+              return;
+            }
+
+            const result = subPayload.result;
 
             // Safely check for result and steps before accessing
             let summary = "✅ **Plan generated:**\n";

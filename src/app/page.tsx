@@ -68,6 +68,10 @@ export default function ChatPage() {
 
   // Send message function with SSE streaming
   const sendMessage = async (userMessage: string) => {
+    // Abort any existing request before creating a new one
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     // Create new AbortController for this request
     abortControllerRef.current = new AbortController();
 
@@ -188,7 +192,7 @@ export default function ChatPage() {
             const subPayload = payload?.payload;
             if (!subPayload) {
               console.log("[FRONTEND] → No payload in subagent result");
-              return;
+              continue;
             }
 
             const result = subPayload.result;
